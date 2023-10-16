@@ -1,8 +1,8 @@
 # Dining-Concierge-Chatbot
 Cloud Assg 1
 TEAM:
-Ritika Deshpande
-Tanisha Bisht
+Ritika Deshpande (rgd2127)
+Tanisha Bisht (tb3061)
 
 S3 bucket : http://progassgn1.com.s3-website-us-east-1.amazonaws.com
 
