@@ -43,24 +43,33 @@ def get_sqs():
     # print("SQS MSG", response)
     return response
     
-def send_email(phone_number, msg):
+def send_email_SNS(phone_number, msg):
     print("inside get send sms")
 
 
     # Specify the sender's email address verified in SES
-    sender_email = 'rgd2127@columbia.edu'
+    topic_arn = "arn:aws:sns:us-east-1:252549629269:Dining_Suggestion_Details"
 
-    # Get the recipient's email dynamically (event variable could contain email information)
-    recipient_email = "ritikagd.1010@gmail.com"
-    # Send the email
-    response = ses.send_email(
-        Source=sender_email,
-        Destination={'ToAddresses': [recipient_email]},
-        Message={
-            'Subject': {'Data': 'Dining Sugg'},
-            'Body': {'Text': {'Data': msg}},
+    # Publish the message to the topic
+    # response = sns.publish(
+    #     TopicArn=topic_arn,
+    #     Message=msg,
+    #     Subject='Hi Dining Suggestions',  # Specify a subject for the email
+    # )
+    response = sns.publish(
+        TopicArn=topic_arn,
+        Message=msg,
+        Subject='Hi Dining Suggestions',
+        MessageAttributes={
+            'email': {
+                'DataType': 'String',
+                'StringValue': 'agamyatani@gmail.com'
+            }
         }
     )
+    print("SNS EMAIL" , response)
+
+    
     
     
 def lambda_handler(event, context):
