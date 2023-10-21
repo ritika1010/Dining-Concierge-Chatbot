@@ -24,10 +24,10 @@ sqs_client = boto3.client('sqs')
 sns = boto3.client('sns')
 ses = boto3.client('ses')
 
+queue_url = 'https://sqs.us-east-1.amazonaws.com/252549629269/UserPreferences'
 
 def get_sqs():
     print("inside get sqs")
-    queue_url = 'https://sqs.us-east-1.amazonaws.com/252549629269/MyUserPrefQueue'
     response = sqs_client.receive_message(
             QueueUrl=queue_url,
             AttributeNames=[
@@ -40,8 +40,10 @@ def get_sqs():
             VisibilityTimeout=0,
             WaitTimeSeconds=0 # Adjust the batch size as needed
     )
-    # print("SQS MSG", response)
+    print("SQS MSG", response)
     return response
+    
+
     
 def send_email_SNS(phone_number, msg):
     print("inside get send sms")
@@ -76,48 +78,62 @@ def lambda_handler(event, context):
     
     print("#GET USER PREFERENCE LATEST")
     sqs_res = get_sqs()
-    print("SQS - content==== ",sqs_res['Messages'][0]['Body'].replace('\\"', '"'))
-    sqs_data = json.loads(sqs_res['Messages'][0]['Body'].replace('\\"', '"'))
-    db = boto3.resource('dynamodb')
-    table = db.Table('YelpRestaurantData')
     
-    print("#SEARCH OPENSEARCH ON CUISINE TYPE FROM PREFERENCE")
-    results = query(sqs_data["cuisine"])
-    # print('Results from opensearch : ' ,results)
-    
-    #REPLY MSG TO USER TEMPLATE
-    msg = "Hello! Here are my " + sqs_data["cuisine"] +" restaurant suggestions for " + sqs_data["peoplenumber"] + " people, for today at " + sqs_data["DiningTime"] + " : "
-    
-    print('#SEARCH RESTAURANT DETAILS FOR ALL RESULTS FROM OPENSEARCH')
-    for r in results:
-        data = lookup_data({'business_id': r['business_id']}) # 2
-        submsg = data['name'] + " located at " + data['address'] + ", "
-        msg = msg + submsg
+    if 'Messages' in sqs_res:
+        print("SQS - content==== ",sqs_res['Messages'][0]['Body'].replace('\\"', '"'))
+        # sqs_data = json.loads(sqs_res['Messages'][0]['Body'].replace('\\"', '"'))
+        cuisine = sqs_res['Messages'][0]["MessageAttributes"]['Cuisine']["StringValue"]
+        location = sqs_res['Messages'][0]["MessageAttributes"]['Location']["StringValue"]
+        email = sqs_res['Messages'][0]["MessageAttributes"]['Email']["StringValue"]
+        people = sqs_res['Messages'][0]["MessageAttributes"]['Numberofpeople']["StringValue"]
+        time = sqs_res['Messages'][0]["MessageAttributes"]['Time']["StringValue"]
+        date = sqs_res['Messages'][0]["MessageAttributes"]['Date']["StringValue"]
+        db = boto3.resource('dynamodb')
+        table = db.Table('YelpRestaurantData')
         
-    msg = msg.replace('None' , '')
-    # print(msg)
-    
-    print('#SEND SMS')
-    phone_number = '+16463694576'
-    send_email_SNS(phone_number, msg)
-    
-    return {
-        'statusCode': 200,
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Headers': 'Content-Type',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': '*',
+        print("#SEARCH OPENSEARCH ON CUISINE TYPE FROM PREFERENCE")
+        results = query(cuisine)
+        # print('Results from opensearch : ' ,results)
+        
+        #REPLY MSG TO USER TEMPLATE
+        msg = "Hello! Here are my " + cuisine +" restaurant suggestions for " + people + " people, for today at " + time + " : "
+        
+        print('#SEARCH RESTAURANT DETAILS FOR ALL RESULTS FROM OPENSEARCH')
+        for r in results:
+            data = lookup_data({'business_id': r['business_id']}) # 2
+            submsg = data['name'] + " located at " + data['address'] + ", "
+            msg = msg + submsg
+        
+        msg = msg.replace('None' , '')
+        # print(msg)
+        
+        print('#SEND SMS')
+        # phone_number = '+16463694576'
+        send_email_SNS(phone_number, msg)
+        
+        # Delete queue info, fifo
+        sqs_client.delete_message(
+            QueueUrl=queue_url,
+            ReceiptHandle=sqs_res['Messages'][0]['ReceiptHandle']
+        )
+
+        
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': '*',
+            }
+            ,
+            'response of restaurants ' :{
+              "name": msg
+            }
+        
         }
-        ,
-        'response of restaurants ' :{
-          "name": msg
-        }
-        
-        
-        
-        
-    }
+    else:
+        print("Chatbot is idle")
     
 
 
